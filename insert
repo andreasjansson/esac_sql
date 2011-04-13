@@ -1,0 +1,152 @@
+#!/usr/bin/php
+<?php
+
+if($argc != 2)
+	die('Usage: insert FILE');
+
+$fp = fopen($argv[1], 'r');
+if(!$fp)
+	die('Failed to open file');
+
+
+$signature = NULL;
+$dataset = NULL;
+$title = NULL;
+$region = NULL;
+$source = NULL;
+$function = NULL;
+$remarks = NULL;
+$lyrics = NULL;
+$melody = NULL;
+$subdivision = NULL;
+$tonic = NULL;
+$metre = NULL;
+
+$blockStart = TRUE;
+$lineNo = 0;
+while($line = fgets($fp)) {
+	++ $lineNo;
+	if(trim($line) == "")
+		$blockStart = TRUE;
+
+	else if($blockStart) {
+		$blockStart = FALSE;
+
+		if($signature) {
+			echo 'REPLACE INTO records ' .
+				'(signature, ' .
+				'dataset, ' .
+				'title, ' .
+				'region, ' .
+				'`source`, ' .
+				'`function`, ' .
+				'remarks, ' .
+				'lyrics, ' .
+				'melody, ' .
+				'subdivision, ' .
+				'tonic, ' .
+				'metre) ' .
+				'VALUES ' .
+				'(\'' . addslashes($signature) . '\', ' .
+				'\'' . addslashes($dataset) . '\', ' .
+				'\'' . addslashes($title) . '\', ' .
+				'\'' . addslashes($region) . '\', ' .
+				'\'' . addslashes($source) . '\', ' .
+				'\'' . addslashes($function) . '\', ' .
+				'\'' . addslashes($remarks) . '\', ' .
+				'\'' . addslashes($lyrics) . '\', ' .
+				'\'' . addslashes($melody) . '\', ' .
+				'\'' . addslashes($subdivision) . '\', ' .
+				'\'' . addslashes($tonic) . '\', ' .
+				'\'' . addslashes($metre) . '\');';
+		}
+
+		$signature = NULL;
+		$title = NULL;
+		$region = NULL;
+		$source = NULL;
+		$function = NULL;
+		$remarks = NULL;
+		$lyrics = NULL;
+		$melody = NULL;
+		$subdivision = NULL;
+		$tonic = NULL;
+		$metre = NULL;
+		$dataset = $line;
+	}
+
+	else {
+		$command = substr($line, 0, 3);
+		if(strpos($line, ']') === FALSE) {
+			$data = substr($line, 4);
+			while($nextLine = fgets($fp)) {
+				++ $lineNo;
+				if(strpos($nextLine, ']') === FALSE) {
+					$data .= $nextLine;
+				}
+				else {
+					$data .= substr($nextLine, 0, strpos($nextLine, ']'));
+					break;
+				}
+			}
+		}
+		else {
+			$data = substr($line, 4, strpos($line, ']') - 4);
+		}
+
+		switch($command) {
+		case 'CUT':
+			$title = $data;
+			break;
+
+		case 'REG':
+			$region = $data;
+			break;
+
+		case 'TRD':
+		case 'SRC':
+			$source = $data;
+			break;
+
+		case 'KEY':
+			$split = preg_split('/[. \t]+/', $data, 4);
+
+			if(count($split) != 4)
+				fprintf(STDERR, "Invalid KEY on line $lineNo: $data\n");
+			else {
+				$signature = $split[0];
+				$subdivision = $split[1];
+				$tonic = $split[2];
+				$metre = $split[3];
+			}
+			break;
+
+		case 'MEL':
+			$melody = $data;
+			break;
+
+		case 'FKT':
+		case 'FCT':
+			$function = $data;
+			break;
+
+		case 'BEM':
+		case 'CMT':
+			$remarks = $data;
+			break;
+
+		case 'TXT':
+		case 'CNR': // assuming cnr means lyrics???
+			$lyrics = $data;
+			break;
+
+		default:
+			fprintf(STDERR, "Invalid command on line $lineNo: $command\n");
+			break;
+		}
+	}
+}
+
+exit(0)
+
+?>
